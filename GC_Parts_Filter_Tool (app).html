@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GC Parts Filter</title>
+<style>
+  :root {
+    --bg-0: #07070b;
+    --bg-1: #0d0d14;
+    --glass: rgba(255, 255, 255, 0.045);
+    --glass-strong: rgba(255, 255, 255, 0.07);
+    --line: rgba(255, 255, 255, 0.09);
+    --line-soft: rgba(255, 255, 255, 0.05);
+    --text: #e8e9ee;
+    --text-dim: #9a9daa;
+    --text-faint: #5c5f6e;
+    --accent: #5b9dff;
+    --accent-soft: rgba(91, 157, 255, 0.14);
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Consolas, monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    min-height: 100vh;
+    background:
+      radial-gradient(900px 500px at 15% -5%, rgba(91, 157, 255, 0.07), transparent 60%),
+      radial-gradient(700px 600px at 95% 100%, rgba(120, 90, 255, 0.05), transparent 55%),
+      linear-gradient(180deg, var(--bg-1), var(--bg-0) 40%);
+    background-attachment: fixed;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI Variable", "Segoe UI", Roboto, Inter, sans-serif;
+    font-size: 14px;
+    padding: 48px 24px 80px;
+  }
+
+  .wrap { max-width: 1280px; margin: 0 auto; }
+
+  /* ── Header ─────────────────────────────────────────── */
+  header { margin-bottom: 36px; }
+  .eyebrow {
+    font-size: 11px;
+    letter-spacing: 0.22em;
+    text-transform: uppercase;
+    color: var(--accent);
+    margin-bottom: 10px;
+    font-weight: 600;
+  }
+  h1 {
+    font-size: clamp(26px, 4vw, 38px);
+    font-weight: 250;
+    letter-spacing: -0.02em;
+  }
+  h1 b { font-weight: 650; }
+  .sub { color: var(--text-dim); margin-top: 8px; max-width: 56ch; line-height: 1.55; }
+
+  /* ── Glass card ─────────────────────────────────────── */
+  .card {
+    background: var(--glass);
+    border: 1px solid var(--line);
+    border-radius: 18px;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset, 0 24px 60px rgba(0,0,0,0.45);
+    padding: 24px;
+    margin-bottom: 24px;
+  }
+  .card-label {
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .card-label::after { content: ""; flex: 1; height: 1px; background: var(--line-soft); }
+
+  /* ── Paste zone ─────────────────────────────────────── */
+  textarea {
+    width: 100%;
+    min-height: 140px;
+    background: rgba(0,0,0,0.35);
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 14px 16px;
+    resize: vertical;
+    transition: border-color 0.2s;
+  }
+  textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  textarea::placeholder { color: var(--text-faint); }
+
+  .toolbar { display: flex; gap: 10px; margin-top: 14px; flex-wrap: wrap; align-items: center; }
+
+  button {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 550;
+    color: var(--text);
+    background: var(--glass-strong);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 18px;
+    cursor: pointer;
+    backdrop-filter: blur(10px);
+    transition: background 0.15s, border-color 0.15s, transform 0.1s;
+  }
+  button:hover { background: rgba(255,255,255,0.11); border-color: rgba(255,255,255,0.18); }
+  button:active { transform: translateY(1px); }
+  button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  button.primary { background: var(--accent); border-color: transparent; color: #06080f; }
+  button.primary:hover { background: #74adff; }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .count-pill {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-dim);
+    background: rgba(0,0,0,0.3);
+    border: 1px solid var(--line-soft);
+    padding: 6px 14px;
+    border-radius: 99px;
+  }
+  .count-pill b { color: var(--good); font-variant-numeric: tabular-nums; }
+
+  /* ── Table ──────────────────────────────────────────── */
+  .table-scroll { overflow-x: auto; border-radius: 12px; border: 1px solid var(--line-soft); }
+  table { border-collapse: collapse; width: 100%; min-width: 1600px; font-size: 12px; }
+  thead th {
+    position: sticky; top: 0;
+    background: rgba(10, 12, 20, 0.92);
+    backdrop-filter: blur(8px);
+    color: var(--text-dim);
+    font-size: 10.5px;
+    font-weight: 650;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    text-align: left;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  tbody td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line-soft);
+    vertical-align: top;
+    white-space: nowrap;
+    max-width: 360px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tbody tr:hover td { background: rgba(255,255,255,0.025); }
+  td.mono { font-family: var(--mono); font-size: 11.5px; color: #c4d4f5; }
+  td.desc { white-space: normal; min-width: 260px; line-height: 1.5; color: var(--text-dim); }
+  td.na { color: var(--text-faint); }
+
+  .badge {
+    display: inline-block;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    padding: 3px 9px;
+    border-radius: 99px;
+    border: 1px solid;
+  }
+  .b-phone  { color: #5b9dff; border-color: rgba(91,157,255,0.4);  background: rgba(91,157,255,0.1); }
+  .b-tablet { color: #4ade80; border-color: rgba(74,222,128,0.35); background: rgba(74,222,128,0.08); }
+  .b-watch  { color: #fbbf24; border-color: rgba(251,191,36,0.35); background: rgba(251,191,36,0.08); }
+  .b-ring   { color: #f472b6; border-color: rgba(244,114,182,0.35);background: rgba(244,114,182,0.08); }
+  .b-buds   { color: #a78bfa; border-color: rgba(167,139,250,0.35);background: rgba(167,139,250,0.08); }
+
+  .empty {
+    text-align: center;
+    color: var(--text-faint);
+    padding: 56px 20px;
+    font-size: 13px;
+    line-height: 1.7;
+  }
+  .empty .glyph { font-size: 30px; opacity: 0.5; display: block; margin-bottom: 12px; }
+
+  .toast {
+    position: fixed;
+    bottom: 28px; left: 50%;
+    transform: translate(-50%, 16px);
+    background: rgba(15, 18, 28, 0.92);
+    border: 1px solid var(--line);
+    backdrop-filter: blur(16px);
+    color: var(--text);
+    padding: 11px 22px;
+    border-radius: 12px;
+    font-size: 13px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s, transform 0.25s;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  footer { color: var(--text-faint); font-size: 11.5px; margin-top: 8px; line-height: 1.7; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <div class="eyebrow">Parts Requests · Filter Tool</div>
+    <h1>GC <b>Parts Filter</b></h1>
+    <p class="sub">Paste raw parts-request rows below. </p>
+  </header>
+
+  <section class="card">
+    <div class="card-label">Paste raw data</div>
+    <textarea id="rawInput" placeholder="Paste one or more raw rows here (tab-separated, straight from your source system)…" spellcheck="false"></textarea>
+    <div class="toolbar">
+      <button class="primary" id="btnFilter">Filter data</button>
+      <button id="btnCopy" disabled>Copy for Excel</button>
+      <button id="btnCsv" disabled>Download CSV</button>
+      <button id="btnClear">Clear</button>
+      <span class="count-pill" id="countPill" hidden><b id="countNum">0</b>&nbsp;rows filtered</span>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-label">Filtered output</div>
+    <div class="table-scroll" id="tableWrap">
+      <div class="empty" id="emptyState">
+        <span class="glyph">⌁</span>
+        Nothing filtered yet.<br>Paste raw rows above and press <b>Filter data</b>.
+      </div>
+    </div>
+    <footer>build 1 - minh</footer>
+  </section>
+
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+
+const HEADERS = [
+  "Created","SERVICE REQUEST","GC SR STATUS","Customer","Call Back Phone",
+  "MODEL","SERIAL","IMEI","Device Storage","COLOR","Device in Store",
+  "Warranty Provider","Description of Issue","Do you need to order  parts?","Parts Required"
+];
+
+/* ── helpers ─────────────────────────────────────────── */
+const isStorage = s => /\d\s*(GB|TB)/i.test(s || "");
+const isNumeric = s => s !== "" && s != null && /^\d+$/.test(String(s).trim());
+const hasDash   = s => (s || "").includes("-");
+
+/* col(): 1-based access into a raw row, trimmed */
+const makeCol = cells => i => (cells[i - 1] || "").trim();
+
+/* ── device detection (same cascade as the Excel tool) ── */
+function detectType(c) {
+  if (hasDash(c(10))) return "ring";                       // model directly in col 10
+  if (hasDash(c(11))) {
+    if (isStorage(c(14))) return "tablet";                 // tablet with IMEI
+    if (isStorage(c(13))) return "tablet_noimei";          // tablet, IMEI absent
+    if (isNumeric(c(13)) && c(14) !== "") return "watch";  // numeric IMEI, color in 14
+    if (c(14) !== "") return "buds";                       // color in 13, serial repeats in 14+
+    return "acc_noimei";                                   // color in 13, nothing after
+  }
+  return "phone";
+}
+
+/* ── per-type column maps ────────────────────────────────
+   [model, serial, imei, storage, color, store, warranty, desc1, desc2]
+   null = N/A · desc2 null = single description column      */
+const MAP = {
+  phone:         [12, 13, 14, 15,  16, 21, 26, 35, null],
+  tablet:        [11, 12, 13, 14,  15, 19, 24, 33, null],
+  tablet_noimei: [11, 12, null,13, 14, 18, 23, 32, null],
+  watch:         [11, 12, 13, null,14, 18, 20, 28, 29],
+  buds:          [11, 12, 14, null,13, 21, 22, 30, 31],
+  acc_noimei:    [11, 12, null,null,13, 17, 19, 27, 28],
+  ring:          [10, 11, 12, null,13, 22, 17, 27, 28],
+};
+
+const BADGE = {
+  phone:         ["Phone",  "b-phone"],
+  tablet:        ["Tablet", "b-tablet"],
+  tablet_noimei: ["Tablet", "b-tablet"],
+  watch:         ["Watch",  "b-watch"],
+  buds:          ["Buds",   "b-buds"],
+  acc_noimei:    ["Ring",   "b-ring"],
+  ring:          ["Ring",   "b-ring"],
+};
+
+/* ── date: "May 21, 2026 5:27 PM" or Excel serial → M/D/YYYY  H:MM:SS AM/PM ── */
+function formatDate(raw) {
+  raw = (raw || "").trim();
+  if (!raw) return "";
+  let d;
+  if (/^\d+(\.\d+)?$/.test(raw)) {                     // Excel serial number
+    d = new Date(Math.round((parseFloat(raw) - 25569) * 86400 * 1000));
+    d = new Date(d.getTime() + d.getTimezoneOffset() * 60000);
+  } else {
+    d = new Date(raw.replace(/\s+/g, " "));
+  }
+  if (isNaN(d)) return raw;                            // pass through if unparseable
+  let h = d.getHours();
+  const ap = h >= 12 ? "PM" : "AM";
+  h = h % 12 || 12;
+  const mm = String(d.getMinutes()).padStart(2, "0");
+  const ss = String(d.getSeconds()).padStart(2, "0");
+  return `${d.getMonth()+1}/${d.getDate()}/${d.getFullYear()}  ${h}:${mm}:${ss} ${ap}`;
+}
+
+/* ── parts: search for marker anywhere in the row ─────── */
+function extractParts(cells) {
+  const trimmed = cells.map(v => (v || "").trim());
+  const iNeeded = trimmed.indexOf("Parts Needed");
+  if (iNeeded !== -1) {
+    return ["Parts Needed", (trimmed[iNeeded + 1] || "").trim()];
+  }
+  const iNone = trimmed.indexOf("No Part Order Needed");
+  if (iNone !== -1) return ["No Part Order Needed", ""];
+  /* legacy buds rows: parts string sits in col 32 with no marker */
+  const legacy = trimmed[31] || "";
+  if (legacy && legacy.toLowerCase() !== "n/a") return ["Parts Needed", legacy];
+  return ["", ""];
+}
+
+/* ── one raw row → one output record ─────────────────── */
+function filterRow(line) {
+  const cells = line.split("\t");
+  if (cells.length < 12) return null;                  // not a data row
+  const c = makeCol(cells);
+  if (!c(1) || !c(2)) return null;
+
+  const type = detectType(c);
+  const [mModel, mSerial, mImei, mStor, mColor, mStore, mWarr, mD1, mD2] = MAP[type];
+
+  const serial = c(mSerial);
+  let imei = mImei ? c(mImei) : "";
+  if (!imei) imei = serial;                            // fallback rule
+
+  let storage = mStor ? c(mStor) : "";
+  if (!storage) storage = "N/A";
+
+  let desc = c(mD1);
+  if (mD2 && c(mD2)) desc = desc ? `${desc} / ${c(mD2)}` : c(mD2);
+
+  const [partsYN, partsReq] = extractParts(cells);
+
+  return {
+    type,
+    row: [
+      formatDate(c(1)), c(2), c(5), c(6), c(9),
+      c(mModel), serial, imei, storage, c(mColor),
+      c(mStore), c(mWarr), desc, partsYN, partsReq
+    ]
+  };
+}
+
+/* ── UI wiring ───────────────────────────────────────── */
+const $ = id => document.getElementById(id);
+let results = [];
+
+function render() {
+  const wrap = $("tableWrap");
+  if (!results.length) {
+    wrap.innerHTML = `<div class="empty"><span class="glyph">⌁</span>Nothing filtered yet.<br>Paste raw rows above and press <b>Filter data</b>.</div>`;
+    $("countPill").hidden = true;
+    $("btnCopy").disabled = $("btnCsv").disabled = true;
+    return;
+  }
+  const head = `<tr><th>Type</th>${HEADERS.map(h => `<th>${h}</th>`).join("")}</tr>`;
+  const body = results.map(r => {
+    const [label, cls] = BADGE[r.type];
+    const tds = r.row.map((v, i) => {
+      const monoCols = [1, 4, 5, 6, 7];                // SR, phone, model, serial, imei
+      const klass = i === 12 ? "desc" : monoCols.includes(i) ? "mono" : v === "N/A" ? "na" : "";
+      return `<td class="${klass}">${escapeHtml(v)}</td>`;
+    }).join("");
+    return `<tr><td><span class="badge ${cls}">${label}</span></td>${tds}</tr>`;
+  }).join("");
+  wrap.innerHTML = `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  $("countNum").textContent = results.length;
+  $("countPill").hidden = false;
+  $("btnCopy").disabled = $("btnCsv").disabled = false;
+}
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"]/g, m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+}
+
+function toast(msg) {
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove("show"), 2200);
+}
+
+$("btnFilter").addEventListener("click", () => {
+  const lines = $("rawInput").value.split(/\r?\n/).filter(l => l.trim());
+  results = lines.map(filterRow).filter(Boolean);
+  render();
+  toast(results.length
+    ? `Filtered ${results.length} row${results.length > 1 ? "s" : ""}`
+    : "No valid rows found — check the paste");
+});
+
+$("btnCopy").addEventListener("click", async () => {
+  const tsv = results.map(r => r.row.join("\t")).join("\n");
+  try {
+    await navigator.clipboard.writeText(tsv);
+    toast("Copied — paste straight into Excel");
+  } catch {
+    const ta = document.createElement("textarea");
+    ta.value = tsv; document.body.appendChild(ta);
+    ta.select(); document.execCommand("copy"); ta.remove();
+    toast("Copied — paste straight into Excel");
+  }
+});
+
+$("btnCsv").addEventListener("click", () => {
+  const esc = v => `"${String(v).replace(/"/g, '""')}"`;
+  const csv = [HEADERS.map(esc).join(","), ...results.map(r => r.row.map(esc).join(","))].join("\r\n");
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob(["\ufeff" + csv], { type: "text/csv" }));
+  a.download = "GC_Parts_Filtered.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+  toast("CSV downloaded");
+});
+
+$("btnClear").addEventListener("click", () => {
+  $("rawInput").value = "";
+  results = [];
+  render();
+});
+</script>
+</body>
+</html>
